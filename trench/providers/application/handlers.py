@@ -1,4 +1,4 @@
-from trench.backends import AbstractMessageDispatcher
+from trench.providers.base import AbstractMessageDispatcher
 from trench.utils import create_qr_link
 
 

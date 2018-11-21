@@ -2,7 +2,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from templated_mail.mail import BaseEmailMessage
 
-from trench.backends import AbstractMessageDispatcher
+from trench.providers.base import AbstractMessageDispatcher
 from trench.settings import api_settings
 
 

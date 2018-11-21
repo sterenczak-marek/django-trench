@@ -59,7 +59,7 @@ Adding own authentication method
 
 .. code-block:: python
 
-    from trench.backends import AbstractMessageDispatcher
+    from trench.providers.base import AbstractMessageDispatcher
 
 
     class CustomAuthBackend(AbstractMessageDispatcher):

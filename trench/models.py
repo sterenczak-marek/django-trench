@@ -2,20 +2,26 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from trench import providers
+from trench.settings import api_settings
+from trench.utils import validate_code
+
 
 class MFAMethod(models.Model):
     """
     Base model with MFA information linked to user.
     """
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         verbose_name=_('user'),
         related_name='mfa_methods',
     )
-    name = models.CharField(
-        _('name'),
+    method = models.CharField(
+        _('method'),
         max_length=255,
+        choices=providers.registry.as_choices()
     )
     secret = models.CharField(
         _('secret'),
@@ -40,7 +46,7 @@ class MFAMethod(models.Model):
         verbose_name_plural = _('MFA Methods')
 
     def __str__(self):
-        return '{} (User id: {})'.format(self.name, self.user_id)
+        return '{} (User: {})'.format(self.method, self.user)
 
     def remove_backup_code(self, code):
         codes = self.backup_codes.split(',')

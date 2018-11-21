@@ -16,6 +16,7 @@ from trench.utils import (
     user_token_generator,
 )
 
+from .. import providers
 
 MFAMethod = get_mfa_model()
 
@@ -30,7 +31,7 @@ class MFACredentialsLoginMixin:
     def handle_mfa_response(self, user, mfa_method, *args, **kwargs):
         data = {
             'ephemeral_token': user_token_generator.make_token(user),
-            'method': mfa_method.name,
+            'method': mfa_method.method,
             'other_methods': serializers.UserMFAMethodSerializer(
                 user.mfa_methods.filter(is_active=True, is_primary=False),
                 many=True,
@@ -48,13 +49,9 @@ class MFACredentialsLoginMixin:
             .first()
         )
         if auth_method:
-            conf = api_settings.MFA_METHODS[auth_method.name]
-            handler = conf['HANDLER'](
-                user=user,
-                obj=auth_method,
-                conf=conf,
-            )
-            handler.dispatch_message()
+            provider = providers.registry.by_id(auth_method.method)
+            provider.get_handler(user=user, mfa_method=auth_method).dispatch_message()
+
             return self.handle_mfa_response(user, auth_method)
 
         return self.handle_user_login(
@@ -91,55 +88,64 @@ class RequestMFAMethodActivationView(GenericAPIView):
     If validation passes, new MFAMethod (inactive) object
     is created.
     """
-    serializer_class = serializers.RequestMFAMethodActivationSerializer
+
     permission_classes = (IsAuthenticated, )
     http_method_names = ['post']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context['name'] = self.kwargs.get('method')
+        context['method'] = self.kwargs.get('method')
         return context
+
+    def get_serializer_class(self):
+        return self.provider.serializers['activate']
 
     def post(self, request, *args, **kwargs):
         self.mfa_method_name = kwargs.get('method')
+        self.provider = providers.registry.get_or_404(self.mfa_method_name)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        obj, created = serializer.save()
-        if not created and obj.is_active:
+
+        mfa_method, created = serializer.save()
+        if not created and mfa_method.is_active:
             return Response(
                 {'error': 'MFA method already active.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        conf = api_settings.MFA_METHODS[self.mfa_method_name]
-
-        handler = conf['HANDLER'](
-            user=request.user,
-            obj=obj,
-            conf=conf,
+        handler = self.provider.get_handler(
+            request.user,
+            mfa_method
         )
         return Response(handler.dispatch_message(), status=status.HTTP_200_OK)
 
 
 class RequestMFAMethodActivationConfirmView(GenericAPIView):
-    serializer_class = serializers.RequestMFAMethodActivationConfirmSerializer
     permission_classes = (IsAuthenticated,)
     http_method_names = ['post']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update({
-            'name': self.kwargs['method'],
+            'method': self.kwargs['method'],
             'obj': self.obj,
             'conf': api_settings.MFA_METHODS[self.kwargs['method']],
         })
         return context
 
+    def get_serializer_class(self):
+        return self.provider.serializers['activate_confirm']
+
     def post(self, request, *args, **kwargs):
         self.mfa_method_name = self.kwargs['method']
+        self.provider = providers.registry.get_or_404(self.mfa_method_name)
+
         self.obj = get_object_or_404(
-            MFAMethod, user=request.user, name=self.mfa_method_name)
+            self.provider.mfa_model,
+            user=request.user,
+            method=self.mfa_method_name
+        )
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -148,35 +154,40 @@ class RequestMFAMethodActivationConfirmView(GenericAPIView):
 
         self.obj.is_active = True
         self.obj.backup_codes = backup_codes
-        self.obj.is_primary = not MFAMethod.objects.filter(
-            user=request.user,
+        self.obj.is_primary = not request.user.mfa_methods.filter(
             is_active=True,
         ).exists()
         self.obj.save(
             update_fields=['is_active', 'backup_codes', 'is_primary']
         )
-
         return Response({'backup_codes': backup_codes.split(',')})
 
 
 class RequestMFAMethodDeactivationView(GenericAPIView):
-    serializer_class = serializers.RequestMFAMethodDeactivationSerializer
     permission_classes = (IsAuthenticated,)
     http_method_names = ['post']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update({
-            'name': self.kwargs['method'],
+            'method': self.kwargs['method'],
             'obj': self.obj,
             'conf': api_settings.MFA_METHODS[self.kwargs['method']],
         })
         return context
 
+    def get_serializer_class(self):
+        return self.provider.serializers['deactivate']
+
     def post(self, request, *args, **kwargs):
         self.mfa_method_name = kwargs.get('method')
+        self.provider = providers.registry.get_or_404(self.mfa_method_name)
+
         self.obj = get_object_or_404(
-            MFAMethod, user=request.user, name=self.mfa_method_name)
+            self.provider.mfa_model,
+            user=request.user,
+            method=self.mfa_method_name
+        )
 
         if not self.obj.is_active:
             return Response(
@@ -216,23 +227,30 @@ class RequestMFAMethodDeactivationView(GenericAPIView):
 
 
 class RequestMFAMethodBackupCodesRegenerationView(GenericAPIView):
-    serializer_class = serializers.RequestMFAMethodBackupCodesRegenerationSerializer  # noqa
     permission_classes = (IsAuthenticated,)
     http_method_names = ['post']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update({
-            'name': self.kwargs['method'],
+            'method': self.kwargs['method'],
             'obj': self.obj,
             'conf': api_settings.MFA_METHODS[self.kwargs['method']],
         })
         return context
 
+    def get_serializer_class(self):
+        return self.provider.serializers['codes_regenerate']
+
     def post(self, request, *args, **kwargs):
         self.mfa_method_name = kwargs.get('method')
+        self.provider = providers.registry.get_or_404(self.mfa_method_name)
+
         self.obj = get_object_or_404(
-            MFAMethod, user=request.user, name=self.mfa_method_name)
+            self.provider.mfa_model,
+            user=request.user,
+            method=self.mfa_method_name
+        )
 
         if not self.obj.is_active:
             return Response(
@@ -271,7 +289,7 @@ class ListUserActiveMFAMethods(APIView):
     def get(self, request, *args, **kwargs):
         active_mfa_methods = MFAMethod.objects.filter(
             user=request.user, is_active=True)
-        serializer = serializers.UserMFAMethodSerializer(
+        serializer = serializers.ActiveFMAMethodsSerializer(
             active_mfa_methods, many=True)
         return Response(serializer.data)
 
@@ -284,28 +302,16 @@ class RequestMFAMethodCode(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        mfa_method_name = serializer.validated_data.get('method')
-        if mfa_method_name:
-            obj = get_object_or_404(
-                MFAMethod,
-                user=request.user,
-                name=mfa_method_name,
-                is_active=True,
-            )
-
-        conf = api_settings.MFA_METHODS.get(mfa_method_name)
-
-        if not conf:
-            return Response(  # pragma: no cover
-                {'error', _('Requested MFA method does not exists')},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        handler = conf.get('HANDLER')(
+        mfa_method_name = serializer.validated_data['method']
+        provider = providers.registry.get_or_404(mfa_method_name)
+        obj = get_object_or_404(
+            provider.mfa_model,
             user=request.user,
-            obj=obj,
-            conf=conf,
+            method=mfa_method_name,
+            is_active=True,
         )
+
+        handler = provider.get_handler(user=request.user, mfa_method=obj)
         dispatcher_resp = handler.dispatch_message()
         return Response(dispatcher_resp)
 
