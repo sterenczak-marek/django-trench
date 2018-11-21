@@ -66,7 +66,7 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
         context = kwargs['context']
 
         self.user = context['request'].user
-        self.conf = api_settings.MFA_METHODS[context['method']]
+        self.conf = api_settings.MFA_METHODS[context['name']]
 
         self.source_field = self.conf.get('SOURCE_FIELD')
         if self.source_field:
@@ -100,11 +100,11 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
         and marks as primary if no other active MFAMethod exists for user.
         """
 
-        provider = providers.registry.by_id(self.context['method'])
+        provider = providers.registry.by_id(self.context['name'])
 
-        return provider.mfa_model.objects.get_or_create(
+        return provider.MFAModel.objects.get_or_create(
             user=self.user,
-            method=self.context['method'],
+            name=self.context['name'],
             defaults={
                 'secret': create_secret(),
                 'is_active': False,
@@ -130,12 +130,9 @@ class ProtectedActionSerializer(serializers.Serializer):
             return value  # pragma: no cover
 
         obj = self.context['obj']
-        validity_period = (
-            self.context['conf'].get('VALIDITY_PERIOD')
-            or api_settings.DEFAULT_VALIDITY_PERIOD
-        )
+        provider = self.context['provider']
 
-        if validate_code(value, obj, validity_period):
+        if provider.validate_otp_code(value, mfa_obj=obj):
             return value
 
         if value in obj.backup_codes.split(','):
@@ -176,7 +173,7 @@ class RequestMFAMethodDeactivationSerializer(ProtectedActionSerializer):
 
         is_current_method_primary = (
             self.user.mfa_methods
-            .filter(method=context['method'])
+            .filter(name=context['name'])
             .get()
             .is_primary
         )
@@ -193,14 +190,14 @@ class RequestMFAMethodDeactivationSerializer(ProtectedActionSerializer):
             self.new_method = None
 
     def validate_new_primary_method(self, value):
-        method_to_deactivate = self.context.get('method')
+        method_to_deactivate = self.context.get('name')
 
         if method_to_deactivate == value:
             self.fail('new_primary_same_as_old')
 
         try:
-            self.new_method = self.user.mfa_methods.get(method=value)
-        except ObjectDoesNotExist:
+            self.new_method = self.user.mfa_methods.get(name=value)
+        except MFAMethod.DoesNotExist:
             self.fail('method_not_registered_for_user')
         if not self.new_method.is_active:
             self.fail('new_primary_method_inactive')  # pragma: no cover
@@ -216,14 +213,9 @@ class RequestMFAMethodCodeSerializer(serializers.ModelSerializer):
         'mfa_method_not_exists': _('Requested MFA method does not exists'),
     }
 
-    def validate_method(self, value):
-        if value and value not in api_settings.MFA_METHODS:
-            self.fail('mfa_method_not_exists')
-        return value
-
     class Meta:
         model = MFAMethod
-        fields = ('method', )
+        fields = ('name', )
 
 
 class LoginSerializer(serializers.Serializer):
@@ -278,13 +270,13 @@ class CodeLoginSerializer(serializers.Serializer):
         if not self.user:
             self.fail('invalid_token')
 
-        for mfa_obj in self.user.mfa_methods.filter(is_active=True):
-            provider = providers.registry.by_id(mfa_obj.method)
-            if provider.validate_otp_code(code, mfa_obj=mfa_obj):
+        for auth_method in self.user.mfa_methods.filter(is_active=True):
+            provider = providers.registry.by_id(auth_method.name)
+            if provider.validate_otp_code(code, mfa_obj=auth_method):
                 return attrs
 
-            if code in mfa_obj.backup_codes.split(','):
-                mfa_obj.remove_backup_code(code)
+            if code in auth_method.backup_codes.split(','):
+                auth_method.remove_backup_code(code)
                 return attrs
 
         self.fail('invalid_code')
@@ -296,26 +288,26 @@ class UserMFAMethodSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = MFAMethod
-        fields = ('method', 'is_primary')
+        fields = ('name', 'is_primary')
 
 
 class ActiveFMAMethodsSerializer(serializers.ModelSerializer):
     """
-    Serializes active MFA method for user preview
+    Serializes all user MFA methods
     """
 
     class Meta:
         model = MFAMethod
-        fields = ('method', 'is_primary')
+        fields = ('name', 'is_primary')
 
     def to_representation(self, instance):
 
-        provider = providers.registry.by_id(instance.method)
+        provider = providers.registry.by_id(instance.name)
 
         real_instance = provider.get_real_instance(instance)
-        serializer = provider.model_serializer
+        serializer = provider.model_serializer()
 
-        return serializer().to_representation(instance=real_instance)
+        return serializer.to_representation(instance=real_instance)
 
 
 class ChangePrimaryMethodSerializer(serializers.Serializer):
@@ -343,13 +335,13 @@ class ChangePrimaryMethodSerializer(serializers.Serializer):
 
         try:
             new_primary_method = user.mfa_methods.get(
-                method=attrs.get('method'),
+                name=attrs.get('method'),
                 is_active=True,
             )
         except ObjectDoesNotExist:
             self.fail('missing_method')
 
-        provider = providers.registry.by_id(current_method.method)
+        provider = providers.registry.by_id(current_method.name)
 
         code = attrs.get('code')
         if provider.validate_otp_code(code, mfa_obj=current_method):

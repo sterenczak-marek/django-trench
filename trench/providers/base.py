@@ -44,29 +44,17 @@ class BaseMFAProvider(object):
     _mfa_model_class = 'trench.MFAMethod'
     _mfa_model_serializer = 'trench.serializers.UserMFAMethodSerializer'
 
-    ACTIVATE = 'activate'
-    ACTIVATE_CONFIRM = 'activate_confirm'
-    CODES_REGENERATE = 'codes_regenerate'
-    DEACTIVATE = 'deactivate'
-
     _serializers = {}
     _default_serializers = {
-        ACTIVATE: 'trench.serializers.RequestMFAMethodActivationSerializer',
-        ACTIVATE_CONFIRM: 'trench.serializers.RequestMFAMethodActivationConfirmSerializer',
-        CODES_REGENERATE: 'trench.serializers.RequestMFAMethodBackupCodesRegenerationSerializer',
-        DEACTIVATE: 'trench.serializers.RequestMFAMethodDeactivationSerializer',
+        'activate': 'trench.serializers.RequestMFAMethodActivationSerializer',
     }
-
-    @classmethod
-    def get_slug(cls):
-        return cls.slug or cls.id
 
     @cached_property
     def conf(self):
         return api_settings.MFA_METHODS.get(self.id, {})
 
     @cached_property
-    def mfa_model(self):
+    def MFAModel(self):
         return apps.get_model(self._mfa_model_class)
 
     @cached_property
@@ -97,9 +85,9 @@ class BaseMFAProvider(object):
         )
 
     def get_real_instance(self, instance):
-        return self.mfa_model.objects.get(pk=instance.pk)
+        return self.MFAModel.objects.get(pk=instance.pk)
 
     def validate_otp_code(self, code, mfa_obj):
         validity_period = self.conf.get('validity_period', api_settings.DEFAULT_VALIDITY_PERIOD)
 
-        return validate_code(code, mfa_obj.secret, validity_period)
+        return len(code) == 6 and validate_code(code, mfa_obj.secret, validity_period)

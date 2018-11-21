@@ -3,8 +3,6 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from trench import providers
-from trench.settings import api_settings
-from trench.utils import validate_code
 
 
 class MFAMethod(models.Model):
@@ -18,8 +16,8 @@ class MFAMethod(models.Model):
         verbose_name=_('user'),
         related_name='mfa_methods',
     )
-    method = models.CharField(
-        _('method'),
+    name = models.CharField(
+        _('name'),
         max_length=255,
         choices=providers.registry.as_choices()
     )
@@ -46,7 +44,7 @@ class MFAMethod(models.Model):
         verbose_name_plural = _('MFA Methods')
 
     def __str__(self):
-        return '{} (User: {})'.format(self.method, self.user)
+        return '{} (User: {})'.format(self.name, self.user)
 
     def remove_backup_code(self, code):
         codes = self.backup_codes.split(',')

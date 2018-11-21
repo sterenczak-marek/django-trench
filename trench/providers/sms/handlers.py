@@ -43,7 +43,7 @@ class SmsAPIBackend(AbstractSMSBackend):
 
     def provider_auth(self):
         return SmsApiPlClient(
-            access_token=self.conf['SMSAPI_ACCESS_TOKEN']
+            access_token=self.conf.get('SMSAPI_ACCESS_TOKEN')
         )
 
 

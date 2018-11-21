@@ -18,7 +18,6 @@ class AuthTokenLoginOrRequestMFACode(MFACredentialsLoginMixin,
 
 class AuthTokenLoginWithMFACode(MFACodeLoginMixin,
                                 ObtainAuthTokenMixin,
-                                TokenCreateView,
                                 GenericAPIView):
     pass
 

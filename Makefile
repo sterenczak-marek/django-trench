@@ -24,7 +24,7 @@ create_admin:
 	$(RUN_MANAGE) createsuperuser --username admin
 
 backend:
-	$(COMPOSE_CMD) run -p 5000:5000 --rm django
+	$(COMPOSE_CMD) run -d -p 8000:8000 --rm django
 
 client:
 	make backend

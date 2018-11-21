@@ -8,6 +8,10 @@ from django.http import Http404
 
 
 class MFAMethodRegistry(object):
+    """
+    Class generated the same way as django-allauth registry
+    """
+
     def __init__(self):
         self.provider_map = OrderedDict()
         self.loaded = False
@@ -38,12 +42,6 @@ class MFAMethodRegistry(object):
             yield (provider_cls.id, provider_cls.name)
 
     def load(self):
-        # TODO: Providers register with the provider registry when
-        # loaded. Here, we build the URLs for all registered providers. So, we
-        # really need to be sure all providers did register, which is why we're
-        # forcefully importing the `provider` modules here. The overall
-        # mechanism is way to magical and depends on the import order et al, so
-        # all of this really needs to be revisited.
         if not self.loaded:
 
             for app in settings.INSTALLED_APPS:
