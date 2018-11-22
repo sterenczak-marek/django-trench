@@ -116,7 +116,7 @@ class RequestMFAMethodActivationView(GenericAPIView):
 
         handler = self.provider.get_handler(
             user=request.user,
-            obj=obj
+            mfa_method=obj
         )
         return Response(handler.dispatch_message(), status=status.HTTP_200_OK)
 

@@ -208,14 +208,20 @@ class RequestMFAMethodBackupCodesRegenerationSerializer(ProtectedActionSerialize
     requires_mfa_code = api_settings.CONFIRM_BACKUP_CODES_REGENERATION_WITH_CODE  # noqa
 
 
-class RequestMFAMethodCodeSerializer(serializers.ModelSerializer):
+class RequestMFAMethodCodeSerializer(serializers.Serializer):
+    method = serializers.CharField(
+        max_length=255,
+        required=False,
+    )
+
     default_error_messages = {
         'mfa_method_not_exists': _('Requested MFA method does not exists'),
     }
 
-    class Meta:
-        model = MFAMethod
-        fields = ('name', )
+    def validate_method(self, value):
+        if value and value not in api_settings.MFA_METHODS:
+            self.fail('mfa_method_not_exists')
+        return value
 
 
 class LoginSerializer(serializers.Serializer):

@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
+from trench.providers import registry
 
 
 class Migration(migrations.Migration):
@@ -20,12 +21,12 @@ class Migration(migrations.Migration):
             name='MFAMethod',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255, verbose_name='name')),
+                ('name', models.CharField(max_length=255, verbose_name='name', choices=registry.as_choices())),
                 ('secret', models.CharField(max_length=20, verbose_name='secret')),
                 ('is_primary', models.BooleanField(default=False, verbose_name='is primary')),
                 ('is_active', models.BooleanField(default=False, verbose_name='is active')),
                 ('backup_codes', models.CharField(blank=True, max_length=255, verbose_name='backup codes')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mfa', to=settings.AUTH_USER_MODEL, verbose_name='user')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mfa_methods', to=settings.AUTH_USER_MODEL, verbose_name='user')),
             ],
             options={
                 'verbose_name': 'MFA Method',

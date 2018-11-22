@@ -16,12 +16,6 @@ class MFAMethodRegistry(object):
         self.provider_map = OrderedDict()
         self.loaded = False
 
-    def get_list(self, request=None):
-        self.load()
-        return [
-            provider_cls(request)
-            for provider_cls in self.provider_map.values()]
-
     def register(self, cls):
         self.provider_map[cls.id] = cls
 
