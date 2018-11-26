@@ -1,8 +1,10 @@
 import pytest
 
-from django.contrib.auth import get_user_model
 from django.apps import apps
+from django.contrib.auth import get_user_model
+
 from trench.utils import create_secret, generate_backup_codes
+
 
 User = get_user_model()
 
@@ -24,6 +26,30 @@ def active_user_with_email_otp():
             secret=create_secret(),
             is_primary=True,
             name='email',
+            is_active=True,
+        )
+
+    return user
+
+
+@pytest.fixture()
+def active_user_with_sms_otp():
+    user, created = User.objects.get_or_create(
+        username='imhotep',
+        email='imhotep@pyramids.eg',
+        phone_number='555-555-555'
+    )
+    if created:
+        user.set_password('secretkey'),
+        user.is_active = True
+        user.save()
+
+        MFAMethod = apps.get_model('trench.MFAMethod')
+        MFAMethod.objects.create(
+            user=user,
+            secret=create_secret(),
+            is_primary=True,
+            name='sms',
             is_active=True,
         )
 
@@ -124,6 +150,13 @@ def active_user_with_many_otp_methods():
             secret=create_secret(),
             is_primary=False,
             name='app',
+            is_active=True,
+            backup_codes=generate_backup_codes(),
+        )
+        MFAMethod.objects.create(
+            user=user,
+            is_primary=False,
+            name='yubi',
             is_active=True,
             backup_codes=generate_backup_codes(),
         )

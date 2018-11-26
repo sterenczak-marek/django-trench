@@ -10,10 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.11/ref/settings/
 """
 
-import os
 import datetime
+import os
 
 import environ
+
 
 root = environ.Path(__file__) - 1
 env = environ.Env(DEBUG=(bool, False), )
@@ -137,6 +138,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_jwt.authentication.JSONWebTokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ]
 }
 
@@ -146,6 +148,11 @@ JWT_AUTH = {
     'JWT_EXPIRATION_DELTA': datetime.timedelta(
         days=env.int('JWT_EXPIRATION_DELTA_DAYS', default=7)
     ),
+}
+
+SIMPLE_JWT = {
+    'USER_ID_FIELD': 'username',
+    'USER_ID_CLAIM': 'username',
 }
 
 DJOSER = {
@@ -188,6 +195,15 @@ TRENCH_AUTH = {
             'VALIDITY_PERIOD': 60 * 10,
             'USES_THIRD_PARTY_CLIENT': True,
             'HANDLER': 'trench.backends.application.ApplicationBackend',
+        },
+        'yubi': {
+            'VERBOSE_NAME': 'yubi',
+            'HANDLER': 'trench.backends.yubikey.YubiKeyBackend',
+            'SOURCE_FIELD': 'yubikey_id',
+            'YUBICLOUD_CLIENT_ID': env(
+                'YUBICLOUD_CLIENT_ID',
+                default=''
+            ),
         }
     }
 

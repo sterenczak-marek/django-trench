@@ -1,15 +1,10 @@
-from django.contrib.auth import (
-    authenticate,
-    get_user_model,
-)
+from django.contrib.auth import authenticate, get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models as django_models
 from django.db.utils import DatabaseError
 from django.utils.translation import ugettext as _
-from django.core.exceptions import ObjectDoesNotExist
-from rest_framework import (
-    fields,
-    serializers,
-)
+
+from rest_framework import fields, serializers
 
 from trench.settings import api_settings
 from trench.utils import (
@@ -20,6 +15,7 @@ from trench.utils import (
     user_token_generator,
     validate_code,
 )
+
 
 User = get_user_model()
 MFAMethod = get_mfa_model()
@@ -99,7 +95,7 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """
-        Creates new MFAMethod object for given user, sets it as incative,
+        Creates new MFAMethod object for given user, sets it as inactive,
         and marks as primary if no other active MFAMethod exists for user.
         """
         return MFAMethod.objects.get_or_create(
@@ -118,8 +114,6 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
 class ProtectedActionSerializer(serializers.Serializer):
     requires_mfa_code = None
     code = serializers.CharField(
-        min_length=6,
-        max_length=6,
         required=False,
     )
 
@@ -137,8 +131,9 @@ class ProtectedActionSerializer(serializers.Serializer):
             or api_settings.DEFAULT_VALIDITY_PERIOD
         )
 
-        if validate_code(value, obj.secret, validity_period):
+        if validate_code(value, obj, validity_period):
             return value
+
         if value in obj.backup_codes.split(','):
             obj.remove_backup_code(value)
             return value
@@ -281,7 +276,7 @@ class CodeLoginSerializer(serializers.Serializer):
             self.fail('invalid_token')
 
         for auth_method in self.user.mfa_methods.filter(is_active=True):
-            if validate_code(code, auth_method.secret):
+            if validate_code(code, auth_method):
                 return attrs
             if code in auth_method.backup_codes.split(','):
                 auth_method.remove_backup_code(code)
@@ -329,7 +324,7 @@ class ChangePrimaryMethodSerializer(serializers.Serializer):
         except ObjectDoesNotExist:
             self.fail('missing_method')
         code = attrs.get('code')
-        if validate_code(code, current_method.secret):
+        if validate_code(code, current_method):
             attrs.update(new_method=new_primary_method)
             attrs.update(old_method=current_method)
 

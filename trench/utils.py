@@ -1,6 +1,6 @@
 from datetime import datetime
-import pyotp
 
+import pyotp
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -11,12 +11,14 @@ from django.utils.crypto import (
     get_random_string,
     salted_hmac,
 )
-from django.utils.http import (
-    base36_to_int,
-    int_to_base36,
-)
+from django.utils.http import base36_to_int, int_to_base36
+
+from yubico_client.yubico import Yubico
+from yubico_client.yubico_exceptions import YubicoError
+import pyotp
 
 from trench.settings import api_settings
+
 
 User = get_user_model()
 
@@ -97,7 +99,7 @@ def create_otp_code(secret):
 
 
 def create_qr_link(secret, user):
-    '''
+    """
     Creates QR link to set application OTP.
 
     :param secret: Secret used to generate OTP
@@ -107,7 +109,7 @@ def create_qr_link(secret, user):
 
     :returns: Link to generate QR code from
     :rtype: str
-    '''
+    """
 
     totp = pyotp.TOTP(secret)
     return totp.provisioning_uri(
@@ -142,12 +144,23 @@ def generate_backup_codes(
 
 def validate_code(
     code,
-    secret,
+    mfa_method,
     valid_window=api_settings.DEFAULT_VALIDITY_PERIOD,
 ):
+
+    if mfa_method.name == 'yubi':
+        conf = api_settings.MFA_METHODS['yubi']
+        client = Yubico(conf['YUBICLOUD_CLIENT_ID'])
+
+        try:
+            return client.verify(code, timestamp=True)
+
+        except (YubicoError, Exception):
+            return False
+
     return (
         pyotp
-        .TOTP(secret)
+        .TOTP(mfa_method.secret)
         .verify(
             code,
             valid_window=int(valid_window / 30)
