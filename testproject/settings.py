@@ -52,6 +52,9 @@ INSTALLED_APPS = [
 
     'testapp',
     'trench',
+    'trench.providers.application',
+    'trench.providers.email',
+    'trench.providers.sms',
 ]
 
 MIDDLEWARE = [
@@ -169,7 +172,7 @@ TRENCH_AUTH = {
         'sms': {
             'VERBOSE_NAME': 'sms',
             'VALIDITY_PERIOD': 60 * 10,
-            'HANDLER': 'trench.backends.twilio.TwilioBackend',
+            'HANDLER': 'trench.providers.sms.handlers.TwilioBackend',
             'SOURCE_FIELD': 'phone_number',
             'TWILIO_ACCOUNT_SID': env(
                 'TWILIO_ACCOUNT_SID',
@@ -187,14 +190,14 @@ TRENCH_AUTH = {
         'email': {
             'VERBOSE_NAME': 'email',
             'VALIDITY_PERIOD': 60 * 10,
-            'HANDLER': 'trench.backends.templated_mail.TemplatedMailBackend',
+            'HANDLER': 'trench.providers.email.handlers.TemplatedMailBackend',
             'SOURCE_FIELD': 'email',
         },
         'app': {
             'VERBOSE_NAME': 'app',
             'VALIDITY_PERIOD': 60 * 10,
             'USES_THIRD_PARTY_CLIENT': True,
-            'HANDLER': 'trench.backends.application.ApplicationBackend',
+            'HANDLER': 'trench.providers.application.handlers.ApplicationBackend',
         },
         'yubi': {
             'VERBOSE_NAME': 'yubi',

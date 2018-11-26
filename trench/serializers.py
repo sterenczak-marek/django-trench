@@ -96,13 +96,13 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         """
-        Creates new MFAMethod object for given user, sets it as inactive,
+        Get or creates MFAMethod object for given user, sets it as inactive,
         and marks as primary if no other active MFAMethod exists for user.
         """
 
         provider = providers.registry.by_id(self.context['name'])
 
-        return provider.MFAModel.objects.get_or_create(
+        mfa_instance, _ = provider.MFAModel.objects.get_or_create(
             user=self.user,
             name=self.context['name'],
             defaults={
@@ -110,6 +110,11 @@ class RequestMFAMethodActivationSerializer(serializers.Serializer):
                 'is_active': False,
             }
         )
+
+        return mfa_instance
+
+    def update(self, instance, validated_data):
+        return self.create(validated_data)
 
     def get_serializer_field_mapping(self):
         return self.serializer_field_mapping

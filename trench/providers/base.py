@@ -44,10 +44,7 @@ class BaseMFAProvider(object):
     _mfa_model_class = 'trench.MFAMethod'
     _mfa_model_serializer = 'trench.serializers.UserMFAMethodSerializer'
 
-    _serializers = {}
-    _default_serializers = {
-        'activate': 'trench.serializers.RequestMFAMethodActivationSerializer',
-    }
+    USE_MODEL_SERIALIZER_TO_ACTIVATION = False
 
     @cached_property
     def conf(self):
@@ -56,19 +53,6 @@ class BaseMFAProvider(object):
     @cached_property
     def MFAModel(self):
         return apps.get_model(self._mfa_model_class)
-
-    @cached_property
-    def serializers(self):
-
-        imported_serializers = {}
-        for method, default_serializer_class in self._default_serializers.items():
-
-            imported_serializers[method] = perform_import(
-                self._serializers.get(method, default_serializer_class),
-                'SERIALIZER'
-            )
-
-        return imported_serializers
 
     @cached_property
     def model_serializer(self):

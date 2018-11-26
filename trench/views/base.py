@@ -99,24 +99,40 @@ class RequestMFAMethodActivationView(GenericAPIView):
         return context
 
     def get_serializer_class(self):
-        return self.provider.serializers['activate']
+        if self.provider.USE_MODEL_SERIALIZER_TO_ACTIVATION:
+            return self.provider.model_serializer
+
+        return serializers.RequestMFAMethodActivationSerializer
 
     def post(self, request, *args, **kwargs):
         self.mfa_method_name = kwargs.get('method')
         self.provider = providers.registry.get_or_404(self.mfa_method_name)
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        obj, created = serializer.save()
-        if not created and obj.is_active:
+        try:
+            instance = self.provider.MFAModel.objects.get(
+                user=self.request.user,
+                name=self.mfa_method_name
+            )
+        except MFAMethod.DoesNotExist:
+            instance = None
+
+        if instance and instance.is_active:
             return Response(
                 {'error': 'MFA method already active.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        serializer = self.get_serializer(instance=instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mfa_method = serializer.save(
+            user=request.user,
+            name=self.mfa_method_name,
+            is_active=False,
+        )
         handler = self.provider.get_handler(
             user=request.user,
-            mfa_method=obj
+            mfa_method=mfa_method
         )
         return Response(handler.dispatch_message(), status=status.HTTP_200_OK)
 
@@ -283,7 +299,7 @@ class ListUserActiveMFAMethods(APIView):
     def get(self, request, *args, **kwargs):
         active_mfa_methods = MFAMethod.objects.filter(
             user=request.user, is_active=True)
-        serializer = serializers.ActiveFMAMethodsSerializer(
+        serializer = serializers.UserMFAMethodSerializer(
             active_mfa_methods, many=True)
         return Response(serializer.data)
 

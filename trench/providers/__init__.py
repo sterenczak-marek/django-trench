@@ -1,7 +1,6 @@
 import importlib
 
 from collections import OrderedDict
-from pprint import pprint
 
 from django.conf import settings
 from django.http import Http404
@@ -44,7 +43,7 @@ class MFAMethodRegistry(object):
                     provider_module = importlib.import_module(
                         app + '.mfa_provider'
                     )
-                except ImportError:
+                except ModuleNotFoundError:
                     pass
                 else:
                     for cls in getattr(

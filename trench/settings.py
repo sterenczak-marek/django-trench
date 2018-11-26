@@ -74,7 +74,7 @@ DEFAULTS = {
         'sms': {
             'VERBOSE_NAME': _('sms'),
             'VALIDITY_PERIOD': 60 * 10,
-            'HANDLER': 'trench.backends.twilio.TwilioBackend',
+            'HANDLER': 'trench.providers.sms.handlers.TwilioBackend',
             'SOURCE_FIELD': 'phone_number',
             'TWILIO_ACCOUNT_SID': 'YOUR KEY',
             'TWILIO_AUTH_TOKEN': 'YOUR KEY',
@@ -86,14 +86,14 @@ DEFAULTS = {
         'email': {
             'VERBOSE_NAME': _('email'),
             'VALIDITY_PERIOD': 60 * 10,
-            'HANDLER': 'trench.backends.templated_mail.TemplatedMailBackend',
+            'HANDLER': 'trench.providers.email.handlers.TemplatedMailBackend',
             'SOURCE_FIELD': 'email',
         },
         'app': {
             'VERBOSE_NAME': _('app'),
             'VALIDITY_PERIOD': 60 * 10,
             'USES_THIRD_PARTY_CLIENT': True,
-            'HANDLER': 'trench.backends.application.ApplicationBackend',
+            'HANDLER': 'trench.providers.application.handlers.ApplicationBackend',
         },
         'yubi': {
             'VERBOSE_NAME': _('yubi'),
